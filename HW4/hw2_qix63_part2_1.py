@@ -2,6 +2,9 @@ import pandas as pd
 import numpy as np
 import re
 import argparse
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
 
 def text_processing(text):
     text = re.sub(r'[^\a-zA-Z0-9\s]', "", text).strip()
@@ -56,7 +59,6 @@ def test_preprocess(args, word_list, word2idx, tf_idf=None):
     df = pd.read_csv(args.testing_file, index_col="id")
     df["text"] = df["text"].apply(text_processing)
     list_of_text = list(df["text"])
-    print(f"number of text (n): {len(list_of_text)}")
     x = np.zeros((len(list_of_text), len(word_list)))
     y = np.array(df["intent"])[:, None]
 
@@ -109,8 +111,31 @@ class logistic_regression():
     def test(self, x, y):
         logit = self.w @ x.T + self.b
         pred = np.where(self.sigmoid(logit)>=0.5, 1, 0)
-        acc = np.sum(pred==y.T) / len(x)
-        print(f"total acc {acc}")
+        y_true = y.flatten()
+        y_pred = pred.flatten()
+        acc = (y_true==y_pred).sum() / len(y_pred)
+        precision = precision_score(y_true, y_pred, average='macro')
+        recall = recall_score(y_true, y_pred, average='macro')
+        f1 = f1_score(y_true, y_pred, average='macro')
+        print(f"acc {acc} | precision {precision} | recall {recall} | f1 {f1}")
+
+        cm = confusion_matrix(y_true, y_pred)
+        print("Confusion Matrix:\n", cm)
+
+        false_positives = np.where((y_true == 0) & (y_pred == 1))[0]
+        false_negatives = np.where((y_true == 1) & (y_pred == 0))[0]
+
+        print(f"\nTotal False Positives: {len(false_positives)} | Total False Negatives: {len(false_negatives)}")
+
+        num_samples = min(5, len(false_positives), len(false_negatives)) 
+        if num_samples > 0:
+            print("\nSample False Positive Examples:")
+            for i in false_positives[:num_samples]:
+                print(f"Index: {i} | True Label: {y_true[i]} | Predicted: {y_pred[i]}")
+
+            print("\nSample False Negative Examples:")
+            for i in false_negatives[:num_samples]:
+                print(f"Index: {i} | True Label: {y_true[i]} | Predicted: {y_pred[i]}")
         return pred
 
     def train(self, args):
@@ -152,3 +177,11 @@ if __name__ == "__main__":
     else:
         x, y = test_preprocess(args, word_list, word2idx)
     pred = log_reg.test(x, y)
+
+    feature_weights = log_reg.w
+    top_positive_indices = np.argsort(feature_weights).squeeze()[-5:]
+    top_negative_indices = np.argsort(feature_weights).squeeze()[:5]  
+    top_positive_words = word_list[top_positive_indices]
+    top_negative_words = word_list[top_negative_indices]
+
+    print(f"top positive weight words:{' '.join(top_positive_words.tolist())}\ntop negative weight words:{' '.join(top_negative_words.tolist())}")

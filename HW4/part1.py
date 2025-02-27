@@ -13,7 +13,7 @@ class logistic_regression():
     def sigmoid(self, x):
         return 1 / (1 + np.exp(-x))
 
-    def train(self, epoch_num=30, lr=0.2):
+    def train(self, epoch_num=1, lr=0.2):
         self.lr = lr
         for epoch in range(epoch_num):
             self.logit = self.w @ self.x.T + self.b
@@ -22,6 +22,7 @@ class logistic_regression():
             self.w -= self.lr / self.x.shape[0] * np.sum((self.pred - self.y.T) * self.x.T,  axis=-1)
             self.b -= self.lr / self.x.shape[0] * np.sum((self.pred - self.y.T), axis=-1)
             print(f"epoch {epoch} | loss {self.loss} | w {self.w} | b {self.b}")
+            print(f"w {self.w} | b {self.b}")
     
     def test(self, x):
         return np.where(self.sigmoid(self.w @ np.array(x).T + self.b)>=0.5, 1, 0).T
