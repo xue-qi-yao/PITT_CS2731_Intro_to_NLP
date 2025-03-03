@@ -185,3 +185,31 @@ if __name__ == "__main__":
     top_negative_words = word_list[top_negative_indices]
 
     print(f"top positive weight words:{' '.join(top_positive_words.tolist())}\ntop negative weight words:{' '.join(top_negative_words.tolist())}")
+
+    df = pd.read_csv("diplomacy_test.csv", index_col="id")
+    df["text"] = df["text"].apply(text_processing)
+    list_of_text = list(df["text"])
+    x = np.zeros((len(list_of_text), len(word_list)))
+
+    if args.binary:
+        for i, list_of_word in enumerate(list_of_text):
+            unique_list_of_word = set(list_of_word)
+            for word in unique_list_of_word:
+                if word in word_list:
+                    x[i, word2idx[word]] = 1
+    else:
+        for i, list_of_word in enumerate(list_of_text):
+            for word in list_of_word:
+                if word in word_list:
+                    x[i, word2idx[word]] += 1
+    if args.tf_idf:
+        x *= tf_idf
+
+    logit = log_reg.w @ x.T + log_reg.b
+    pred = np.where(log_reg.sigmoid(logit)>=0.5, 1, 0)
+
+    result_df = pd.DataFrame()
+    df = pd.read_csv("diplomacy_test.csv")
+    result_df["id"] = df["id"]
+    result_df["intent"] = pred.squeeze()
+    result_df.to_csv("qix63.csv", index=False)

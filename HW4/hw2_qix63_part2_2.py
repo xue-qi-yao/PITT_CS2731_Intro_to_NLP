@@ -1,11 +1,13 @@
 from transformers import BertTokenizer, BertModel
-from data import DiplomacyTrainingDataset, DiplomacyValidationDataset
+from data import DiplomacyTrainingDataset, DiplomacyValidationDataset, DiplomacyTestDataset
 from torch.utils.data import DataLoader
 import argparse
 import torch
 import torch.nn as nn
 from transformers import AdamW
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
+import numpy as np
+import pandas as pd
 
 def collate_fn(data):
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
@@ -15,6 +17,11 @@ def collate_fn(data):
     inputs = tokenizer(sents, padding=True, truncation=True, return_tensors="pt")
     labels = torch.tensor(labels)
     return inputs["input_ids"], inputs["attention_mask"], inputs["token_type_ids"], labels
+
+def test_collate_fn(sents):
+    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+    inputs = tokenizer(sents, padding=True, truncation=True, return_tensors="pt")
+    return inputs["input_ids"], inputs["attention_mask"], inputs["token_type_ids"]
 
 
 class ClassificationModel(nn.Module):
@@ -37,6 +44,7 @@ class ClassificationModel(nn.Module):
 if __name__=="__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--training_file", type=str, default="diplomacy_cv.csv")
+    parser.add_argument("--testing_file", type=str, default="diplomacy_test.csv")
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--epoch_num", type=int, default=30)
     parser.add_argument("--device", type=str, default="cuda")
@@ -57,6 +65,8 @@ if __name__=="__main__":
         training_loader = DataLoader(dataset=training_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=True)
         val_dataset = DiplomacyValidationDataset(args, fold_num=fold_num)
         val_loader = DataLoader(dataset=val_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=True)
+        test_dataset = DiplomacyTestDataset(args)
+        test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size, collate_fn=test_collate_fn, shuffle=False)
 
         model.train()
         for epoch in range(args.epoch_num):
@@ -107,5 +117,21 @@ if __name__=="__main__":
     f1 = f1_score(all_labels, all_preds, average='macro')
 
     print(f"acc {acc} | precision {precision} | recall {recall} | f1-score {f1}")
+
+    model.eval()
+    test_result = np.array([])
+    with torch.inference_mode():
+        for i, (input_ids, attention_mask, token_type_ids) in enumerate(test_loader):
+            input_ids, attention_mask, token_type_ids = input_ids.to(args.device), attention_mask.to(args.device), token_type_ids.to(args.device)
+            output = model(input_ids, attention_mask, token_type_ids)
+            test_result = np.append(test_result, output.detach().cpu().numpy().argmax(axis=-1))
+    print(test_result.shape)
+
+    result_df = pd.DataFrame()
+    df = pd.read_csv("diplomacy_test.csv")
+    result_df["id"] = df["id"]
+    result_df["intent"] = test_result
+    result_df.to_csv("qix63.csv", index=False)
+
 
         

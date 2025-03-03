@@ -51,6 +51,21 @@ class DiplomacyValidationDataset(Dataset):
     
     def __len__(self):
         return len(self.labels)
+    
+class DiplomacyTestDataset(Dataset):
+    def __init__(self, args):
+        super().__init__()
+        df = pd.read_csv(Path(args.testing_file), index_col="id")
+        df["text"] = df["text"].apply(text_processing)
+        self.list_of_text = df["text"].to_list()
+
+    def __getitem__(self, index):
+        text = self.list_of_text[index]
+        return text
+    
+    def __len__(self):
+        return len(self.list_of_text)
+
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser()
